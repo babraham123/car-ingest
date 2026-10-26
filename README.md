@@ -7,12 +7,12 @@ original timestamps:
 - WiCAN Pro logger batches (`.jsonl`, `.jsonl.gz`), format in
   [docs/wican-jsonl.md](docs/wican-jsonl.md)
 
-One run scans a directory of uploads, imports every file it hasn't seen, and exits; schedule it
-with a timer or cron. It is one Python script on the standard library only.
+One run scans an upload directory, imports every file it hasn't seen, and exits; schedule it with
+a timer or cron. It is one zipapp on Python's standard library only.
 
 ## Behaviour
 
-- Each file is imported once, keyed by its sha256 in the state file, so a re-upload adds nothing.
+- Each file is imported once, keyed by its sha256 in the state file; a re-upload adds nothing.
 - Files modified in the last minute are left for the next run, since they may still be uploading.
 - A malformed file moves to `failed/` in the upload directory.
 - A file whose oldest sample is older than `--retention-days` stays in place and is recorded as
@@ -33,7 +33,8 @@ car_ingest_last_success_timestamp_seconds
 
 ## Configuration
 
-Every option has an environment variable; a flag wins over its variable.
+Every option has an environment variable; a flag wins over its variable. The password has no
+flag, so it never shows in a process list.
 
 | Flag | Variable | Default | Meaning |
 | --- | --- | --- | --- |
@@ -42,30 +43,49 @@ Every option has an environment variable; a flag wins over its variable.
 | | `CAR_INGEST_VM_PASSWORD` | unset | Basic auth password; no auth when unset |
 | `--car-dir` | `CAR_INGEST_CAR_DIR` | `/car` | Upload directory |
 | `--state-dir` | `CAR_INGEST_STATE_DIR` | `/state` | Holds `state` (imported files) and `trips` |
-| `--metrics-file` | `CAR_INGEST_METRICS_FILE` | `/metrics/car_ingest.prom` | Textfile metrics |
-| `--timezone` | `CAR_INGEST_TIMEZONE`, then `TZ` | `UTC` | The phone's zone: `.brc` start times are local, and trips are named in it |
+| `--metrics-file` | `CAR_INGEST_METRICS_FILE` | `/metrics/`<br>`car_ingest.prom` | Textfile metrics |
+| `--timezone` | `CAR_INGEST_TIMEZONE`,<br>then `TZ` | `UTC` | The phone's zone: `.brc` start times are local, and trips are named in it |
 | `--retention-days` | `CAR_INGEST_RETENTION_DAYS` | `31` | VictoriaMetrics' `-retentionPeriod` in days |
 | `--default-car` | `CAR_INGEST_DEFAULT_CAR` | `car` | `car` label for `.brc` files and batches not named by the sync app |
 | `--car-sources` | `CAR_INGEST_CAR_SOURCES` | empty | `SOURCE=CAR,…`: each WiCAN dongle id's car label |
 
-The password has no flag, so it never shows in a process list.
+## Install
+
+Needs Python 3.9+ with the IANA time zone database (`tzdata`).
+
+```bash
+python3 build.py   # dist/car_ingest; or download it from a release, below
+sudo install -D dist/car_ingest /usr/local/bin/car_ingest
+```
+
+To pin a version, download a release's build and check it against the sha256 in its notes:
+
+```bash
+tag=TAG
+sha=SHA256
+url="https://github.com/babraham123/car-ingest/releases/download/${tag}/car_ingest"
+wget -O car_ingest "$url"
+echo "${sha}  car_ingest" | sha256sum --check
+```
+
+Pushing a `v*` tag runs the tests, builds the zipapp and publishes it as a release.
 
 ## Usage
 
 ```bash
 # One run over the upload directory
-CAR_INGEST_VM_PASSWORD=… ./car_ingest.py --vm-url https://metrics.example.com \
+CAR_INGEST_VM_PASSWORD=… car_ingest --vm-url https://metrics.example.com \
   --car-dir ./uploads --state-dir ./state --metrics-file ./car_ingest.prom \
   --timezone America/Los_Angeles --default-car ev6 --car-sources wican_AA_BB_CC_DD_EE_01=ev6
 
 # Print one file's import lines, or why it fails, without importing
-./car_ingest.py --timezone America/Los_Angeles 'uploads/2026-05-24 20-10-53.brc'
+car_ingest --timezone America/Los_Angeles 'uploads/2026-05-24 20-10-53.brc'
 ```
 
 ### Container
 
 ```bash
-podman build -t car_ingest -f Containerfile .
+podman build -t car_ingest -f Containerfile .   # builds the zipapp into the image
 podman run --rm \
   -v /path/to/uploads:/car -v /var/lib/car_ingest:/state \
   -v /var/lib/node_exporter/textfile_collector:/metrics \
@@ -85,7 +105,7 @@ python3 -m unittest discover -s tests
 
 The tests write synthetic `.brc` recordings and WiCAN batches and cover the conversions, param
 mapping, trips, the `car` label, configuration, and a run's import-once, `failed/`, `too_old` and
-retry handling.
+retry handling. The command-line tests run the zipapp `build.py` makes.
 
 ## License
 

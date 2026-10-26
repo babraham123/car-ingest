@@ -1,4 +1,4 @@
-# car_ingest.py on .brc files written to the format in docs/brc-format.md: header start
+# car_ingest on .brc files written to the format in docs/brc-format.md: header start
 # time is phone-local, sample time = start + offset, sensor names slugified, unit enums
 # mapped (unknown ones to unknown_<n>), the trip label is the file stem, the car label the
 # default car, and any unexpected structure fails the file. On WiCAN batches
@@ -8,7 +8,7 @@
 # across a car's batches, and the car label from the dongle id in the file name through
 # the car sources. Each file is imported once; malformed files move to failed/; files past
 # retention are too_old and never posted; a failed post records nothing, so the next run
-# retries.
+# retries. The command line runs from the zipapp build.py makes.
 # Usage:
 #   python3 -m unittest discover -s tests
 
@@ -29,8 +29,11 @@ import zoneinfo
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
-import car_ingest  # noqa: E402
+
+import build  # noqa: E402
+from car_ingest import cli, config, ingest  # noqa: E402
 
 TZ = "America/Los_Angeles"
 # 2026-05-24 20:10:53 PDT, the recordings' start
@@ -42,6 +45,13 @@ OTHER = "wican_AA_BB_CC_DD_EE_02"
 # A day after the start: inside retention, and the upload long settled
 DAY_LATER = START + 86400
 TRIP = ["def:7:[BMS] Battery Power:46", "sample:1.5:7:-12.25", "sample:120.25:7:4.5"]
+
+
+def setUpModule():
+  global ZIPAPP
+  tmp = tempfile.mkdtemp()
+  unittest.addModuleCleanup(shutil.rmtree, tmp)
+  ZIPAPP = build.build(Path(tmp) / "car_ingest")
 
 
 def string(s):
@@ -109,7 +119,7 @@ class CarIngestTest(unittest.TestCase):
     self.tmp = Path(tempfile.mkdtemp())
     self.addCleanup(shutil.rmtree, self.tmp)
     self.car = self.tmp / "car"
-    self.cfg = car_ingest.Config(
+    self.cfg = config.Config(
       car_dir=self.car,
       state_dir=self.tmp / "state",
       metrics_file=self.tmp / "car_ingest.prom",
@@ -139,7 +149,7 @@ class CarIngestTest(unittest.TestCase):
     self.settle(self.car / file_name)
 
   def convert(self, path):
-    """car_ingest.py FILE through its command line: (exit status, stdout, stderr)."""
+    """car_ingest FILE through the zipapp: (exit status, stdout, stderr)."""
     env = {
       "PATH": os.environ.get("PATH", ""),
       "CAR_INGEST_TIMEZONE": TZ,
@@ -147,10 +157,7 @@ class CarIngestTest(unittest.TestCase):
       "CAR_INGEST_CAR_SOURCES": f"{EV6}=ev6",
     }
     p = subprocess.run(
-      [sys.executable, "-I", str(ROOT / "car_ingest.py"), str(path)],
-      env=env,
-      capture_output=True,
-      text=True,
+      [sys.executable, "-I", str(ZIPAPP), str(path)], env=env, capture_output=True, text=True
     )
     return p.returncode, p.stdout, p.stderr
 
@@ -173,7 +180,7 @@ class CarIngestTest(unittest.TestCase):
 
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-      car_ingest.ingest(self.cfg, post, float(now))
+      ingest.ingest(self.cfg, post, float(now))
     return out.getvalue(), err.getvalue()
 
   def posted_lines(self):
@@ -454,7 +461,7 @@ car_ingest_last_success_timestamp_seconds {DAY_LATER + 900}
       "CAR_INGEST_CAR_SOURCES": "a=ev6, b=kona",
       "CAR_INGEST_RETENTION_DAYS": "30",
     }
-    cfg, args = car_ingest.parse_args(["--default-car", "ioniq", "--car-dir", "/uploads"], env)
+    cfg, args = cli.parse_args(["--default-car", "ioniq", "--car-dir", "/uploads"], env)
     self.assertEqual(
       (cfg.car_dir, cfg.default_car, cfg.retention_days, cfg.car_sources, cfg.timezone.key),
       (Path("/uploads"), "ioniq", 30, {"a": "ev6", "b": "kona"}, "Europe/Berlin"),
@@ -472,7 +479,12 @@ car_ingest_last_success_timestamp_seconds {DAY_LATER + 900}
         contextlib.redirect_stderr(io.StringIO()),
         self.assertRaises(SystemExit),
       ):
-        car_ingest.parse_args(argv, env)
+        cli.parse_args(argv, env)
+
+  def test_the_zipapp_runs(self):
+    p = subprocess.run([str(ZIPAPP), "--help"], capture_output=True, text=True)
+    self.assertEqual(p.returncode, 0, p.stderr)
+    self.assertIn("usage: car_ingest", p.stdout)
 
 
 if __name__ == "__main__":
