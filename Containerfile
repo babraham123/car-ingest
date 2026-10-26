@@ -7,5 +7,8 @@ COPY src /build/src
 RUN python3 /build/build.py /car_ingest
 
 FROM docker.io/library/python:3.14-alpine
+# Nothing installs at run time, and pip's vendored urllib3 and msgpack would fail the scan
+# gate.
+RUN python3 -m pip uninstall -y pip
 COPY --from=build /car_ingest /usr/local/bin/car_ingest
 ENTRYPOINT ["python3", "/usr/local/bin/car_ingest"]
