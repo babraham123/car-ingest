@@ -47,11 +47,13 @@ MAGIC = "CARSCANNERRECORD"
 DEF_MARKER = 0x00D56190
 SAMPLE_MARKER = 0x01274350
 # Car Scanner's unit enum; values are SI whatever the app displays.
+# fmt: off
 UNITS = {
   0: "none", 3: "km", 6: "rpm", 10: "V", 14: "%", 15: "°C", 17: "s", 18: "min",
   27: "kOhm", 30: "Hz", 46: "kW", 54: "h", 58: "currency", 59: "A", 60: "kWh",
   61: "Wh", 62: "Ah", 63: "hours",
 }
+# fmt: on
 DOTNET_EPOCH = datetime.datetime(1, 1, 1)
 
 # WiCAN params mapped onto the Car Scanner series and unit labels, so one dashboard serves
@@ -71,9 +73,12 @@ WICAN_SERIES = {
   "KWH_DISCHARGED": ("car_bms_cumulative_energy_discharged", "kWh", 1),
   "LV_V": ("car_bms_auxillary_battery_voltage", "V", 1),
 }
-WICAN_SERIES.update({f"HV_T_{n}": (f"car_bms_battery_pack_b{n:02d}", "°C", 1) for n in range(1, 17)})
+WICAN_SERIES.update(
+  {f"HV_T_{n}": (f"car_bms_battery_pack_b{n:02d}", "°C", 1) for n in range(1, 17)}
+)
 # Every other param's unit, from wican-fw's vehicle_profiles.json, "Kia: EV6"; an empty
 # unit there is "unknown" here, like a param the profile lacks
+# fmt: off
 WICAN_UNITS = {
   "SPEED": "km/h", "TMP_A": "°C", "T_CAB": "°C", "REGEN_MAX": "kW", "POWER_MAX": "kW",
   "HV_H_1": "°C", "HV_KWH_R": "Wh", "SOH": "%", "HV_C_D_MIN_NO": "none",
@@ -84,6 +89,7 @@ WICAN_UNITS = {
   "TYRE_T_FL": "°C", "TYRE_T_FR": "°C", "TYRE_T_RL": "°C", "TYRE_T_RR": "°C",
   "ODOMETER_MI": "mi", "ODOMETER": "km", "STEER_ANGLE": "deg",
 }
+# fmt: on
 # ts_quality values whose ts is imported; "unknown" rows have no ts and are dropped
 IMPORTED_QUALITIES = ("journal", "device", "anchor")
 TRIP_GAP_MS = 10 * 60 * 1000
@@ -134,7 +140,7 @@ class Reader:
     if self.pos + length > len(self.data):
       raise FormatError(f"truncated string at byte {self.pos}")
     try:
-      value = self.data[self.pos:self.pos + length].decode("utf-8")
+      value = self.data[self.pos : self.pos + length].decode("utf-8")
     except UnicodeDecodeError as e:
       raise FormatError(f"bad string at byte {self.pos}: {e}") from e
     self.pos += length
@@ -168,7 +174,9 @@ def parse_brc(data, tz):
     r.string()
   # The top two bits of a .NET DateTime hold its Kind.
   ticks = r.take("<q") & 0x3FFFFFFFFFFFFFFF
-  start = (DOTNET_EPOCH + datetime.timedelta(microseconds=ticks // 10)).replace(tzinfo=tz).timestamp()
+  start = (
+    (DOTNET_EPOCH + datetime.timedelta(microseconds=ticks // 10)).replace(tzinfo=tz).timestamp()
+  )
 
   sensors, samples = {}, []
   while not r.done():
@@ -233,7 +241,9 @@ def parse_jsonl(data):
     if not math.isfinite(value):
       continue
     name = param.split(".", 1)[1]
-    series_name, unit, divisor = WICAN_SERIES.get(name, ("car_" + slug(name), WICAN_UNITS.get(name) or "unknown", 1))
+    series_name, unit, divisor = WICAN_SERIES.get(
+      name, ("car_" + slug(name), WICAN_UNITS.get(name) or "unknown", 1)
+    )
     samples.append((series_name, unit, float(value) / divisor, ts))
   if not samples:
     raise FormatError("no importable rows")
@@ -287,7 +297,11 @@ def convert(path, data, trips, cfg):
   {car: (ms, trip)}, the last trip per car, updated in place for batches."""
   if not is_batch(path):
     samples = parse_brc(data, cfg.timezone)
-    return [(series(n, u, path.stem, cfg.default_car), v, ms) for n, u, v, ms in samples], cfg.default_car, 0
+    return (
+      [(series(n, u, path.stem, cfg.default_car), v, ms) for n, u, v, ms in samples],
+      cfg.default_car,
+      0,
+    )
   samples, dropped = parse_jsonl(data)
   car, source = batch_car(batch_stem(path), cfg)
   if source is not None and source not in cfg.car_sources:
@@ -302,8 +316,11 @@ def import_lines(samples):
 
 
 def log(message, err=False):
-  print(f"{datetime.datetime.now().astimezone().isoformat(timespec='seconds')} {message}",
-        file=sys.stderr if err else sys.stdout, flush=True)
+  print(
+    f"{datetime.datetime.now().astimezone().isoformat(timespec='seconds')} {message}",
+    file=sys.stderr if err else sys.stdout,
+    flush=True,
+  )
 
 
 def ingest(cfg, post, now):
@@ -368,12 +385,16 @@ def ingest(cfg, post, now):
     record(sha, "ok", len(samples), path.name)
 
   counts = Counter(line.split("\t")[1] for line in state.read_text().splitlines())
-  lines = ["# HELP car_ingest_files_total Car recordings and logger batches processed, by outcome.",
-           "# TYPE car_ingest_files_total counter"]
+  lines = [
+    "# HELP car_ingest_files_total Car recordings and logger batches processed, by outcome.",
+    "# TYPE car_ingest_files_total counter",
+  ]
   lines += ['car_ingest_files_total{result="%s"} %d' % (r, counts[r]) for r in RESULTS]
-  lines += ["# HELP car_ingest_last_success_timestamp_seconds Unix time of the last car_ingest run that completed.",
-            "# TYPE car_ingest_last_success_timestamp_seconds gauge",
-            f"car_ingest_last_success_timestamp_seconds {int(now)}"]
+  lines += [
+    "# HELP car_ingest_last_success_timestamp_seconds Unix time of the last car_ingest run that completed.",
+    "# TYPE car_ingest_last_success_timestamp_seconds gauge",
+    f"car_ingest_last_success_timestamp_seconds {int(now)}",
+  ]
   # node_exporter's textfile collector only reads *.prom, so the rename is atomic for it.
   metrics = cfg.metrics_file
   metrics.parent.mkdir(parents=True, exist_ok=True)
@@ -403,6 +424,7 @@ def poster(url, user, password):
         if attempt == 3:
           raise
       time.sleep(10)
+
   return post
 
 
@@ -423,28 +445,66 @@ def parse_args(argv, env):
   p = argparse.ArgumentParser(
     prog="car_ingest.py",
     description="Imports Car Scanner .brc recordings and WiCAN Pro .jsonl[.gz] batches into "
-                "VictoriaMetrics at their original timestamps. Each option defaults to the "
-                "environment variable named in its help. The VictoriaMetrics password is "
-                "CAR_INGEST_VM_PASSWORD.")
+    "VictoriaMetrics at their original timestamps. Each option defaults to the "
+    "environment variable named in its help. The VictoriaMetrics password is "
+    "CAR_INGEST_VM_PASSWORD.",
+  )
   defaults = Config()
 
   def opt(flag, var, default, help, **kwargs):
-    p.add_argument(flag, default=env.get(var, default), help=f"{help} [{var}, default: %(default)s]", **kwargs)
+    p.add_argument(
+      flag, default=env.get(var, default), help=f"{help} [{var}, default: %(default)s]", **kwargs
+    )
 
   opt("--car-dir", "CAR_INGEST_CAR_DIR", str(defaults.car_dir), "directory of uploads")
-  opt("--state-dir", "CAR_INGEST_STATE_DIR", str(defaults.state_dir), "where the imported-file and trip state lives")
-  opt("--metrics-file", "CAR_INGEST_METRICS_FILE", str(defaults.metrics_file),
-      "Prometheus textfile the run's counters are written to")
-  opt("--vm-url", "CAR_INGEST_VM_URL", None, "VictoriaMetrics base URL, e.g. https://metrics.example.com")
-  opt("--vm-user", "CAR_INGEST_VM_USER", "admin", "basic auth user, sent when CAR_INGEST_VM_PASSWORD is set")
-  opt("--timezone", "CAR_INGEST_TIMEZONE", env.get("TZ") or "UTC",
-      "IANA zone the phone records in and trips are named in; falls back to TZ")
-  opt("--retention-days", "CAR_INGEST_RETENTION_DAYS", str(defaults.retention_days),
-      "VictoriaMetrics' retention; older files are recorded as too_old")
-  opt("--default-car", "CAR_INGEST_DEFAULT_CAR", defaults.default_car,
-      "car label for .brc files and batches not named <source>-<cursor>-<hash>")
-  opt("--car-sources", "CAR_INGEST_CAR_SOURCES", "",
-      "comma-separated SOURCE=CAR pairs naming each WiCAN dongle's car")
+  opt(
+    "--state-dir",
+    "CAR_INGEST_STATE_DIR",
+    str(defaults.state_dir),
+    "where the imported-file and trip state lives",
+  )
+  opt(
+    "--metrics-file",
+    "CAR_INGEST_METRICS_FILE",
+    str(defaults.metrics_file),
+    "Prometheus textfile the run's counters are written to",
+  )
+  opt(
+    "--vm-url",
+    "CAR_INGEST_VM_URL",
+    None,
+    "VictoriaMetrics base URL, e.g. https://metrics.example.com",
+  )
+  opt(
+    "--vm-user",
+    "CAR_INGEST_VM_USER",
+    "admin",
+    "basic auth user, sent when CAR_INGEST_VM_PASSWORD is set",
+  )
+  opt(
+    "--timezone",
+    "CAR_INGEST_TIMEZONE",
+    env.get("TZ") or "UTC",
+    "IANA zone the phone records in and trips are named in; falls back to TZ",
+  )
+  opt(
+    "--retention-days",
+    "CAR_INGEST_RETENTION_DAYS",
+    str(defaults.retention_days),
+    "VictoriaMetrics' retention; older files are recorded as too_old",
+  )
+  opt(
+    "--default-car",
+    "CAR_INGEST_DEFAULT_CAR",
+    defaults.default_car,
+    "car label for .brc files and batches not named <source>-<cursor>-<hash>",
+  )
+  opt(
+    "--car-sources",
+    "CAR_INGEST_CAR_SOURCES",
+    "",
+    "comma-separated SOURCE=CAR pairs naming each WiCAN dongle's car",
+  )
   p.add_argument("file", nargs="?", type=Path, help="print FILE's import lines instead of running")
   args = p.parse_args(argv)
 
@@ -459,8 +519,15 @@ def parse_args(argv, env):
     p.error(str(e))
   if args.file is None and not args.vm_url:
     p.error("--vm-url (CAR_INGEST_VM_URL) is required to run")
-  cfg = Config(Path(args.car_dir), Path(args.state_dir), Path(args.metrics_file), timezone,
-               retention_days, args.default_car, sources)
+  cfg = Config(
+    Path(args.car_dir),
+    Path(args.state_dir),
+    Path(args.metrics_file),
+    timezone,
+    retention_days,
+    args.default_car,
+    sources,
+  )
   return cfg, args
 
 
