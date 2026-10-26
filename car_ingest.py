@@ -47,13 +47,26 @@ MAGIC = "CARSCANNERRECORD"
 DEF_MARKER = 0x00D56190
 SAMPLE_MARKER = 0x01274350
 # Car Scanner's unit enum; values are SI whatever the app displays.
-# fmt: off
 UNITS = {
-  0: "none", 3: "km", 6: "rpm", 10: "V", 14: "%", 15: "°C", 17: "s", 18: "min",
-  27: "kOhm", 30: "Hz", 46: "kW", 54: "h", 58: "currency", 59: "A", 60: "kWh",
-  61: "Wh", 62: "Ah", 63: "hours",
+  0: "none",
+  3: "km",
+  6: "rpm",
+  10: "V",
+  14: "%",
+  15: "°C",
+  17: "s",
+  18: "min",
+  27: "kOhm",
+  30: "Hz",
+  46: "kW",
+  54: "h",
+  58: "currency",
+  59: "A",
+  60: "kWh",
+  61: "Wh",
+  62: "Ah",
+  63: "hours",
 }
-# fmt: on
 DOTNET_EPOCH = datetime.datetime(1, 1, 1)
 
 # WiCAN params mapped onto the Car Scanner series and unit labels, so one dashboard serves
@@ -78,18 +91,39 @@ WICAN_SERIES.update(
 )
 # Every other param's unit, from wican-fw's vehicle_profiles.json, "Kia: EV6"; an empty
 # unit there is "unknown" here, like a param the profile lacks
-# fmt: off
 WICAN_UNITS = {
-  "SPEED": "km/h", "TMP_A": "°C", "T_CAB": "°C", "REGEN_MAX": "kW", "POWER_MAX": "kW",
-  "HV_H_1": "°C", "HV_KWH_R": "Wh", "SOH": "%", "HV_C_D_MIN_NO": "none",
-  "HV_C_D_MAX_NO": "none", "HV_AH_CHARGED": "Ah", "HV_AH_DISCHARGED": "Ah",
-  "DM_R_RPM": "rpm", "CAPACITOR": "V", "RESISTANCE": "kOhm", "HV_C_V_MAX_NO": "none",
-  "HV_C_V_MIN_NO": "none", "OP_TIME": "hours", "CHARGING_R_A": "A", "LV_SOC": "%",
-  "TYRE_P_FL": "psi", "TYRE_P_FR": "psi", "TYRE_P_RL": "psi", "TYRE_P_RR": "psi",
-  "TYRE_T_FL": "°C", "TYRE_T_FR": "°C", "TYRE_T_RL": "°C", "TYRE_T_RR": "°C",
-  "ODOMETER_MI": "mi", "ODOMETER": "km", "STEER_ANGLE": "deg",
+  "SPEED": "km/h",
+  "TMP_A": "°C",
+  "T_CAB": "°C",
+  "REGEN_MAX": "kW",
+  "POWER_MAX": "kW",
+  "HV_H_1": "°C",
+  "HV_KWH_R": "Wh",
+  "SOH": "%",
+  "HV_C_D_MIN_NO": "none",
+  "HV_C_D_MAX_NO": "none",
+  "HV_AH_CHARGED": "Ah",
+  "HV_AH_DISCHARGED": "Ah",
+  "DM_R_RPM": "rpm",
+  "CAPACITOR": "V",
+  "RESISTANCE": "kOhm",
+  "HV_C_V_MAX_NO": "none",
+  "HV_C_V_MIN_NO": "none",
+  "OP_TIME": "hours",
+  "CHARGING_R_A": "A",
+  "LV_SOC": "%",
+  "TYRE_P_FL": "psi",
+  "TYRE_P_FR": "psi",
+  "TYRE_P_RL": "psi",
+  "TYRE_P_RR": "psi",
+  "TYRE_T_FL": "°C",
+  "TYRE_T_FR": "°C",
+  "TYRE_T_RL": "°C",
+  "TYRE_T_RR": "°C",
+  "ODOMETER_MI": "mi",
+  "ODOMETER": "km",
+  "STEER_ANGLE": "deg",
 }
-# fmt: on
 # ts_quality values whose ts is imported; "unknown" rows have no ts and are dropped
 IMPORTED_QUALITIES = ("journal", "device", "anchor")
 TRIP_GAP_MS = 10 * 60 * 1000
