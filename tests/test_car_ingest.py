@@ -290,6 +290,30 @@ car_ingest_last_success_timestamp_seconds {DAY_LATER + 900}
     self.assertEqual(self.state(), ["failed\t0\tbad.brc"])
     self.assertIn('car_ingest_files_total{result="failed"} 1\n', self.cfg.metrics_file.read_text())
 
+  def test_moves_files_that_fail_to_convert_to_failed_and_imports_the_rest(self):
+    # Well-formed files whose numbers break the conversion itself
+    self.upload("1-infinite-offset.brc", TRIP[0], "sample:1e308:7:1")
+    self.upload("2-nan-offset.brc", TRIP[0], "sample:nan:7:1")
+    self.batch(name(EV6, 1), [row(0, "SOC", 10**400)])
+    self.batch(name(EV6, 2), [row(10**15, "SOC", 80)])
+    self.upload("z.brc", *TRIP)
+    _, err = self.ingest(DAY_LATER)
+    bad = ["1-infinite-offset.brc", "2-nan-offset.brc", name(EV6, 1), name(EV6, 2)]
+    for file_name in bad:
+      self.assertTrue((self.car / "failed" / file_name).is_file(), f"{file_name} not in failed/")
+      self.assertIn(file_name, err)
+    self.assertEqual(
+      sorted(self.state()), sorted([f"failed\t0\t{f}" for f in bad] + ["ok\t2\tz.brc"])
+    )
+    self.assertEqual(
+      self.posted_lines(),
+      [
+        f'car_bms_battery_power{{unit="kW",trip="z",car="ev6"}} -12.25 {START * 1000 + 1500}',
+        f'car_bms_battery_power{{unit="kW",trip="z",car="ev6"}} 4.5 {START * 1000 + 120250}',
+      ],
+    )
+    self.assertIn('car_ingest_files_total{result="failed"} 4\n', self.cfg.metrics_file.read_text())
+
   def test_records_trips_past_retention_as_too_old(self):
     self.upload("old.brc", *TRIP)
     self.ingest(START + (RETENTION_DAYS + 1) * 86400)

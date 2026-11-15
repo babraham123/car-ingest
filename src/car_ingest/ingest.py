@@ -5,7 +5,7 @@ import shutil
 from collections import Counter
 
 from .brc import parse_brc
-from .util import FormatError, log, series
+from .util import log, series
 from .vm import import_lines
 from .wican import batch_car, batch_stem, file_order, is_batch, parse_jsonl, split_trips
 
@@ -74,7 +74,9 @@ def ingest(cfg, post, now):
     pending = dict(trips)
     try:
       samples, _, dropped = convert(path, data, pending, cfg)
-    except FormatError as e:
+    # Not just FormatError: out-of-range numbers raise OverflowError, ValueError or OSError
+    # deep in the conversion, and a file left in place would stop every later run.
+    except Exception as e:
       log(f"{path.name}: {e}", err=True)
       shutil.move(path, car_dir / "failed" / path.name)
       record(sha, "failed", 0, path.name)
