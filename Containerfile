@@ -1,12 +1,12 @@
 # car_ingest's zipapp on Python's standard library. The base image carries the tzdata
 # zoneinfo reads the phone's time zone from, and the CA certificates for an HTTPS
 # VictoriaMetrics.
-FROM docker.io/library/python:3.14-alpine AS build
+FROM docker.io/library/python:3.15-alpine@sha256:0f9552bb28711333da16915ec146f5e6bb44a7fdac9ced15dc17c2e0206346dd AS build
 COPY build.py /build/
 COPY src /build/src
 RUN python3 /build/build.py /car_ingest
 
-FROM docker.io/library/python:3.14-alpine
+FROM docker.io/library/python:3.15-alpine@sha256:0f9552bb28711333da16915ec146f5e6bb44a7fdac9ced15dc17c2e0206346dd
 # Nothing installs at run time, and pip's vendored urllib3 and msgpack would fail the scan
 # gate.
 RUN python3 -m pip uninstall -y pip
